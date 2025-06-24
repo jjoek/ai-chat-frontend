@@ -214,7 +214,7 @@
         </div>
 
         <!-- Input Area -->
-        <div class="border-t border-gray-200 bg-white px-4 py-4">
+        <div class="px-4 py-4">
           <form @submit.prevent="handleSubmit" class="flex items-end space-x-3">
             <div class="flex-1 relative">
               <textarea
@@ -232,13 +232,13 @@
               <!-- Character Count -->
               <div
                 v-if="inputMessage.length > 0"
-                class="absolute bottom-2 right-2 text-xs text-gray-400"
+                class="absolute bottom-2 right-2 mb-4 mr-4 text-xs text-gray-400"
               >
                 {{ inputMessage.length }}
               </div>
             </div>
 
-            <div class="flex space-x-2">
+            <div class="flex mb-3">
               <!-- Clear Chat -->
               <button
                 v-if="messages.length > 0"
