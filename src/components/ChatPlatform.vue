@@ -151,7 +151,7 @@
                     : 'bg-white border border-gray-200 text-gray-900 mr-12'
                 "
               >
-                <div class="whitespace-pre-wrap">{{ message.content }}</div>
+                <vue-markdown :source="message.content" />
 
                 <!-- Message Actions -->
                 <div
@@ -278,6 +278,7 @@
 <script setup>
 import axios from "axios";
 import { ref, computed, nextTick, onMounted } from "vue";
+import VueMarkdown from "vue-markdown-render";
 import {
   MessageCircleIcon,
   ChevronDownIcon,
