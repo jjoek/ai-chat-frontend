@@ -1,5 +1,6 @@
 <template>
-  <div class="flex flex-col h-screen bg-gray-50">
+  <div v-if="models.length <= 0">Loading ...</div>
+  <div v-else class="flex flex-col h-screen bg-gray-50">
     <!-- Header -->
     <header class="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
       <div class="flex items-center justify-between max-w-6xl mx-auto">
@@ -155,7 +156,7 @@
                 <!-- Message Actions -->
                 <div
                   v-if="message.role === 'assistant'"
-                  class="absolute -bottom-8 left-0 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute -bottom-8 right-0 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <button
                     @click="copyMessage(message.content, message.id)"
@@ -187,7 +188,7 @@
                 class="text-xs text-gray-500 mt-1 px-1"
                 :class="{ 'text-right': message.role === 'user' }"
               >
-                {{ message.role === "user" ? "You" : currentModel.name }} •
+                {{ message.role === "user" ? "You" : message.modelName }} •
                 {{ formatTime(message.timestamp) }}
               </div>
             </div>
@@ -275,6 +276,7 @@
 </template>
 
 <script setup>
+import axios from "axios";
 import { ref, computed, nextTick, onMounted } from "vue";
 import {
   MessageCircleIcon,
@@ -287,52 +289,11 @@ import {
   SendIcon,
   Trash2Icon,
 } from "lucide-vue-next";
+const apiUrl = import.meta.env.VITE_API_URL;
 
 // Available AI models
-const models = [
-  {
-    id: "gpt-4",
-    name: "GPT-4",
-    provider: "OpenAI",
-    description: "Most capable model",
-    color: "#10B981",
-  },
-  {
-    id: "gpt-3.5-turbo",
-    name: "GPT-3.5 Turbo",
-    provider: "OpenAI",
-    description: "Fast and efficient",
-    color: "#059669",
-  },
-  {
-    id: "claude-3-sonnet",
-    name: "Claude 3 Sonnet",
-    provider: "Anthropic",
-    description: "Balanced performance",
-    color: "#8B5CF6",
-  },
-  {
-    id: "claude-3-haiku",
-    name: "Claude 3 Haiku",
-    provider: "Anthropic",
-    description: "Fast responses",
-    color: "#A855F7",
-  },
-  {
-    id: "gemini-pro",
-    name: "Gemini Pro",
-    provider: "Google",
-    description: "Multimodal AI",
-    color: "#3B82F6",
-  },
-  {
-    id: "llama-2-70b",
-    name: "Llama 2 70B",
-    provider: "Meta",
-    description: "Open source model",
-    color: "#EF4444",
-  },
-];
+let models = ref([]);
+let currentModel = ref({});
 
 // Reactive state
 const selectedModelId = ref("gpt-4");
@@ -343,11 +304,6 @@ const isTyping = ref(false);
 const copiedMessageId = ref(null);
 const messagesContainer = ref(null);
 const messageInput = ref(null);
-
-// Computed properties
-const currentModel = computed(
-  () => models.find((m) => m.id === selectedModelId.value) || models[0]
-);
 
 // Sample suggestions
 const suggestions = [
@@ -406,6 +362,7 @@ const mockResponses = {
 // Methods
 const selectModel = (model) => {
   selectedModelId.value = model.id;
+  currentModel.value = model;
   isModelDropdownOpen.value = false;
 };
 
@@ -415,41 +372,32 @@ const handleSubmit = () => {
 };
 
 const sendMessage = async (content) => {
-  const userMessage = {
-    id: Date.now(),
-    role: "user",
-    content: content,
-    timestamp: new Date(),
-  };
-
-  messages.value.push(userMessage);
-  inputMessage.value = "";
-  isTyping.value = true;
-
-  await nextTick();
-  scrollToBottom();
-
-  // Simulate AI response delay
-  setTimeout(() => {
-    const responses =
-      mockResponses[selectedModelId.value] || mockResponses["gpt-4"];
-    const randomResponse =
-      responses[Math.floor(Math.random() * responses.length)];
-
-    const aiMessage = {
-      id: Date.now() + 1,
-      role: "assistant",
-      content: randomResponse,
+  try {
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      content: content,
       timestamp: new Date(),
     };
 
-    messages.value.push(aiMessage);
+    messages.value.push(userMessage);
+    inputMessage.value = "";
+    isTyping.value = true;
+
+    const res = await axios.post(`${apiUrl}/chat`, {
+      message: content,
+      modelId: currentModel.value.id,
+    });
+
+    messages.value.push(res.data.chatHistory[res.data.chatHistory.length - 1]);
     isTyping.value = false;
 
-    nextTick(() => {
-      scrollToBottom();
-    });
-  }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds
+    console.log(res);
+  } catch (e) {
+    alert("Unable to submit request");
+  }
+
+  return;
 };
 
 const copyMessage = async (content, messageId) => {
@@ -490,11 +438,38 @@ const scrollToBottom = () => {
 };
 
 const formatTime = (date) => {
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return typeof date == "string"
+    ? date
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const fetchSupportedModels = async () => {
+  try {
+    const res = await axios.get(`${apiUrl}/supported-models`);
+    models.value = res.data?.models;
+    currentModel.value = res.data?.selectedModel;
+    selectedModelId.value = currentModel.id;
+
+    console.log(currentModel.value);
+  } catch (err) {
+    console.error("Unable to fetch supported models", err);
+  }
+};
+
+const chatHistory = async () => {
+  try {
+    const res = await axios.get(`${apiUrl}/chat-history`);
+    messages.value = res.data.chats;
+  } catch (err) {
+    console.error("Unable to fetch supported models", err);
+  }
 };
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  await chatHistory();
+  await fetchSupportedModels();
+
   if (messageInput.value) {
     messageInput.value.focus();
   }
