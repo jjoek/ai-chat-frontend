@@ -217,7 +217,38 @@
         <!-- Input Area -->
         <div class="px-4 py-4">
           <form @submit.prevent="handleSubmit" class="flex items-end space-x-3">
-            <div class="flex-1 relative">
+            <div class="flex-1 relative flex">
+              <!-- File Upload -->
+              <label
+                class="p-3 rounded-full cursor-pointer mr-2"
+                title="Upload PDF"
+              >
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  style="display: none"
+                  @change="handleFileChange"
+                />
+                <!-- You can use an icon here -->
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                  />
+                </svg>
+                <span v-if="fileName" class="text-xs text-gray-500 mr-2">{{
+                  fileName
+                }}</span>
+              </label>
+
               <textarea
                 ref="messageInput"
                 v-model="inputMessage"
@@ -292,11 +323,11 @@ import {
 } from "lucide-vue-next";
 const apiUrl = import.meta.env.VITE_API_URL;
 
-// Available AI models
+// Reactive state
 let models = ref([]);
 let currentModel = ref({});
-
-// Reactive state
+const selectedFile = ref(null);
+const fileName = ref("");
 const selectedModelId = ref("gpt-4");
 const isModelDropdownOpen = ref(false);
 const inputMessage = ref("");
@@ -385,20 +416,38 @@ const sendMessage = async (content) => {
     inputMessage.value = "";
     isTyping.value = true;
 
-    const res = await axios.post(`${apiUrl}/chat`, {
-      message: content,
-      modelId: currentModel.value.id,
+    const formData = new FormData();
+    formData.append("message", content);
+    formData.append("modelId", currentModel.value.id);
+    if (selectedFile.value) {
+      formData.append("file", selectedFile.value);
+    }
+
+    const res = await axios.post(`${apiUrl}/chat`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     });
 
     messages.value.push(res.data.chatHistory[res.data.chatHistory.length - 1]);
     isTyping.value = false;
-
-    console.log(res);
+    selectedFile.value = null;
+    fileName.value = "";
   } catch (e) {
     alert("Unable to submit request");
   }
 
   return;
+};
+
+const handleFileChange = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.type !== "application/pdf") {
+    alert("Only PDF files are allowed.");
+    event.target.value = null;
+    return;
+  }
+  selectedFile.value = file;
+  fileName.value = file.name;
 };
 
 const copyMessage = async (content, messageId) => {
@@ -422,20 +471,16 @@ const regenerateResponse = (messageId) => {
   }
 };
 
-const clearChat = () => {
+const clearChat = async () => {
   messages.value = [];
+
+  await axios.delete(`${apiUrl}/clear-chat`);
 };
 
 const autoResize = (event) => {
   const textarea = event.target;
   textarea.style.height = "auto";
   textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
-};
-
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-  }
 };
 
 const formatTime = (date) => {
